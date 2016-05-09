@@ -950,6 +950,19 @@ CALL METHOD cl_gui_frontend_services=>gui_download
 *
 *  write: /.
 
+  DATA: begin of ls_work,
+           uname type uname,
+           lt_abap  type abaptxt255_tab,
+           lt_trdir type trdir_it,
+           lt_dd04v type TABLE OF dd04v,
+           lt_dd01v type TABLE OF dd01v,
+           lt_dd07v type TABLE OF dd07v,
+           lt_dd02v type TABLE OF dd02v,
+           lt_dd03v type TABLE OF dd03v,
+           lt_dd40v TYPE TABLE OF dd40v,
+           lt_textpool type TABLE OF textpool,
+           lt_config type table of zlt_config,
+       end of ls_work.
 
 ENDFUNCTION.
 FINISH:Z_AQ_CHANGE_LOG_FILE                                                                                          FUNC
