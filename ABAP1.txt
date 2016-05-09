@@ -966,3 +966,207 @@ CALL METHOD cl_gui_frontend_services=>gui_download
 
 ENDFUNCTION.
 FINISH:Z_AQ_CHANGE_LOG_FILE                                                                                          FUNC
+  TYPE-POOLS: abap.
+  CONSTANTS: c_task_wb type TRFUNCTION value 'S'.
+  CONSTANTS: c_task_cust type TRFUNCTION value 'Q'.
+  CONSTANTS: c_modif_d type TRSTATUS value 'D'.
+  CONSTANTS: c_modif_l type TRSTATUS value 'L'.
+  CONSTANTS: c_modif_o type TRSTATUS value 'O'.
+  CONSTANTS: c_modif_r type TRSTATUS value 'R'.
+  CONSTANTS: c_modif_n type TRSTATUS value 'N'.
+
+
+  DATA: user type uname.
+  DATA: objname type VERSOBJNAM.
+  DATA: objname_rept type char34.
+  DATA: t_e070_open     type TABLE OF e070.
+  DATA: t_e070_released type TABLE OF e070.
+  DATA: t_e071_workbench type table of e071.
+  DATA: t_e071k_custom type table of E071k.
+  DATA: t_dd03v type TABLE OF dd03v.
+  DATA: t_dd02tv type TABLE OF dd02tv.
+  DATA: t_dd02v type TABLE OF dd02v.
+  DATA: s_dd02v type dd02v.
+  DATA: t_config type ztt_config.
+  DATA: s_config TYPE zlt_config.
+  data: s_dd03v type dd03v.
+  data: s_dd02tv type dd02tv.
+  DATA: s_e071k_custom type E071k.
+  DATA: s_e071_workbench type e071.
+  DATA: s_e070          type e070.
+  DATA: s_abaptxt255   type abaptxt255.
+  DATA: s_textpool type textpool.
+  DATA: s_trdir type trdir.
+
+
+
+  DATA: begin of ls_work,
+           uname type uname,
+           lt_abap  type abaptxt255_tab,
+           lt_trdir type trdir_it,
+           lt_dd04v type TABLE OF dd04v,
+           lt_dd01v type TABLE OF dd01v,
+           lt_dd07v type TABLE OF dd07v,
+           lt_dd02v type TABLE OF dd02v,
+           lt_dd03v type TABLE OF dd03v,
+           lt_dd40v TYPE TABLE OF dd40v,
+           lt_textpool type TABLE OF textpool,
+           lt_config type table of zlt_config,
+       end of ls_work.
+
+  DATA:  ls_work_user like ls_work.
+  DATA: tt_work_user type ZTTWORK_USER.
+
+  select * FROM e070 INTO TABLE t_e070_open
+    where ( trfunction = c_task_wb
+       OR   trfunction = c_task_cust )
+    and  ( trstatus   = c_modif_d
+       OR  trstatus    = c_modif_l ).
+
+  select * FROM e070 INTO TABLE t_e070_released
+   where ( trfunction  = c_task_wb
+       OR  trfunction  = c_task_cust )
+   and  (  trstatus    = c_modif_o
+        OR trstatus    = c_modif_r
+        OR trstatus    = c_modif_n )
+   and     as4date     = sy-datum  . "NOTE THIS SHOULD BE A PARAMETER IN THE FM
+
+
+
+
+  loop at t_users INTO user.
+
+    ls_work_user-uname = user.
+    clear t_e071_workbench.
+    refresh t_e071_workbench.
+*Do workbench tansports first!
+*** find relevant transports being worked on or released today
+    loop at t_e070_open into s_e070 where as4user     = user
+                                    AND   trfunction  = c_task_wb."Workbench only
+
+
+      select  * from e071 into table t_e071_workbench
+        where trkorr = s_e070-trkorr.
+      loop at t_e071_workbench into s_e071_workbench.
+
+        "Note - if PROG - it is necessary to check both REPS and REPT
+        "At the moment I am only checking REPS for PROG
+
+        CASE s_e071_workbench-object.
+
+          WHEN 'REPT'.
+
+            objname_rept = s_e071_workbench-obj_name.
+            clear: t_textpool[].
+            clear: t_trdir_it[].
+
+            CALL FUNCTION 'SVRS_GET_VERSION_REPT'
+              EXPORTING
+                OBJECT_NAME = objname_rept
+                VERSNO      = '99999'
+              TABLES
+                REPOT_TAB   = T_TEXTPOOL
+                TRDIR_TAB   = T_TRDIR_IT
+              EXCEPTIONS
+                NO_VERSION  = 1
+                OTHERS      = 2.
+            IF T_TEXTPOOL IS INITIAL.
+              CALL FUNCTION 'SVRS_GET_VERSION_REPT'
+                EXPORTING
+                  OBJECT_NAME = objname_rept
+                  VERSNO      = '00000'
+                TABLES
+                  REPOT_TAB   = T_TEXTPOOL
+                  TRDIR_TAB   = T_TRDIR_IT
+                EXCEPTIONS
+                  NO_VERSION  = 1
+                  OTHERS      = 2.
+            ENDIF.
+
+            CLEAR s_trdir.
+            READ TABLE t_trdir_it INTO s_trdir INDEX 1.
+            if   s_trdir-udat ge datefrom  "Only get reports from the date from
+              or s_trdir-cdat ge datefrom.
+              loop at t_textpool into s_textpool.
+*               write: / s_textpool-id, s_textpool-id, s_textpool-entry.
+              endloop.
+              append lines of t_textpool to ls_work_user-lt_textpool.
+              append LINES OF t_trdir_it to ls_work_user-lt_trdir.
+            endif.
+          WHEN 'IDOC'. "IDOC type - Note there is no version managemnt
+            data: idoccreatedate type datum. "date of idoc create
+            data: idocchangedate type datum. "date of idoc change
+            data: idocedi_idoctp type EDI_IDOCTP. "idOC type
+            idocedi_idoctp = s_e071_workbench-obj_name.
+            select single credate ldate from edbas into (idoccreatedate, idocchangedate)
+                                 where idoctyp = idocedi_idoctp
+                                 or    credate = sy-datum
+                                 or    ldate   = sy-datum.
+            if sy-subrc ne 0.
+              CONTINUE.
+            endif.
+
+*            write:/, 'IDoc Type'.
+
+            if idoccreatedate = sy-datum.
+*              write: /, idocedi_idoctp, 'was created'.
+            endif.
+
+            if idocchangedate = sy-datum.
+*              write: /, idocedi_idoctp, 'was changed'.
+            endif.
+
+
+
+          WHEN 'TTYP'. "TABLE TYPE
+            data: t_dd40v TYPE TABLE OF dd40v.
+            data: s_dd40v TYPE dd40v.
+            clear: t_dd40v[].
+            objname = s_e071_workbench-obj_name.
+            CALL FUNCTION 'SVRS_GET_VERSION_TTYD_40'
+              EXPORTING
+*               DESTINATION                        =
+                OBJECT_NAME                        = objname
+                VERSNO                             = '99999'
+*               IV_NO_RELEASE_TRANSFORMATION       =
+*             IMPORTING
+*               INFO_LINE                          =
+              TABLES
+*               VSMODISRC                          =
+*               DD40TV_TAB                         =
+                DD40V_TAB                          = t_dd40v
+*               DD42V_TAB                          =
+*               DD43TV_TAB                         =
+*               DD43V_TAB                          =
+*               VSMODILOG                          =
+             EXCEPTIONS
+               NO_VERSION                         = 1
+               SYSTEM_FAILURE                     = 2
+               COMMUNICATION_FAILURE              = 3
+               OTHERS                             = 4
+                      .
+            IF t_dd40v is INITIAL.
+
+              CALL FUNCTION 'SVRS_GET_VERSION_TTYD_40'
+                EXPORTING
+*               DESTINATION                        =
+                  OBJECT_NAME                        = objname
+                  VERSNO                             = '00000'
+*               IV_NO_RELEASE_TRANSFORMATION       =
+*             IMPORTING
+*               INFO_LINE                          =
+                TABLES
+*               VSMODISRC                          =
+*               DD40TV_TAB                         =
+                  DD40V_TAB                          = t_dd40v
+*               DD42V_TAB                          =
+*               DD43TV_TAB                         =
+*               DD43V_TAB                          =
+*               VSMODILOG                          =
+                EXCEPTIONS
+                  NO_VERSION                         = 1
+                  SYSTEM_FAILURE                     = 2
+                  COMMUNICATION_FAILURE              = 3
+                  OTHERS                             = 4
+                        .
+            ENDIF.
