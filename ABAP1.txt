@@ -15,7 +15,6 @@ FUNCTION Z_AQ_CHANGE_LOG_FILE.
 *"     REFERENCE(T_TEXTPOOL) TYPE  TEXTPOOL_TABLE OPTIONAL
 *"----------------------------------------------------------------------
   TYPE-POOLS: abap.
-*Constants
   CONSTANTS: c_task_wb type TRFUNCTION value 'S'.
   CONSTANTS: c_task_cust type TRFUNCTION value 'Q'.
   CONSTANTS: c_modif_d type TRSTATUS value 'D'.
