@@ -16,6 +16,7 @@ FUNCTION Z_AQ_CHANGE_LOG.
 *"----------------------------------------------------------------------
   TYPE-POOLS: abap.
 *Constants
+*here is a comment difference
   CONSTANTS: c_task_wb type TRFUNCTION value 'S'.
   CONSTANTS: c_task_cust type TRFUNCTION value 'Q'.
   CONSTANTS: c_modif_d type TRSTATUS value 'D'.
